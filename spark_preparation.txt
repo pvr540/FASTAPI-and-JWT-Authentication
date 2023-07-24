@@ -1,0 +1,787 @@
+spark is an open source framework . spark is a unified analytics engine for processing large volumes of data
+The spark execution engine supports in-memory computation and cyclic data flow and
+it can run either on cluster mode or standalone mode and can access diverse data sources like HBase, HDFS, Cassandra, etc
+
+spark streaming vs structured streaming:
+-----------------------------------------
+Apache Spark provides two different APIs for processing real-time streaming data:
+ Spark Streaming and Structured Streaming.
+Both APIs allow you to process data in real-time, but they have some differences in terms of functionality and architecture.
+
+Here are some of the key differences between Spark Streaming and Structured Streaming:
+
+API: Spark Streaming provides a high-level API for processing real-time data based on the Spark core engine. 
+Structured Streaming, on the other hand, is a new API built on the Spark SQL engine that provides a more scalable and fault-tolerant streaming engine.
+
+Batch Processing: Spark Streaming processes data in small batches, typically every few seconds, and the processing of each batch is a separate Spark job.
+Structured Streaming processes data in mini-batches and continuously updates the final result in a scalable and fault-tolerant manner.
+
+Streaming Window: Spark Streaming provides various window operations, such as sliding windows, and allows you to process data over a specific time window.
+Structured Streaming supports the same window operations as Spark Streaming, but with improved scalability and fault-tolerance.
+
+Latency: Spark Streaming has a higher latency compared to Structured Streaming, as it processes data in small batches.
+Structured Streaming has a lower latency, as it processes data in mini-batches and updates the result continuously.
+
+State Management: Spark Streaming requires manual management of state, including fault tolerance and checkpointing. 
+Structured Streaming provides built-in state management, including automatic checkpointing and fault tolerance, which makes it easier to develop and maintain streaming applications.
+
+In general, Structured Streaming is the recommended approach for processing real-time data in Spark as it provides a more scalable and fault-tolerant streaming engine,
+ and it is easier to develop and maintain streaming applications.
+However, if you have an existing Spark Streaming application and want to continue using it, Spark Streaming provides a powerful and flexible API for processing real-time data.
+
+Scheduling in microsoft:
+-------------------------
+Thumbling window is used to schedule older date as well as define the end date.
+
+
+Delta lake in DataBricks:
+-------------------------
+if you are getting updated data how to handle here
+ spark.config.set("spark.databricks.optimizer.dynamicPartitionPruning","true")
+ from delta.tables import DeltaTable
+ if(spark._jsparkSession.catalog().tableExists("tbl_name")):
+    deltaTable = DeltaTable.forPath(sparksession, "path of the table")
+    deltaTable.alias("tgt").merge(
+     result_df.alias("upd"),
+     "tgt.result_id = upd.result_id AND tgt.race_id=upd.race_id") \
+     .whenMatchedUpdateAll()\
+     .whenNotMatchedInsertAll()
+     .execute()
+  else:
+   result_df.write.mode("overwrite").partitionBy("race_id").format("delta").saveAsTable("tbl_name")
+
+
+insert data into managed tables in spark:
+------------------------------------------
+if you are trying to insert the data as full/incremental load and if there is an issue while inserting
+data and reinsert the same data one more time there are 2 options.
+1. check the table exist condition and fetch the list of distinct partitions from table
+   match with current processing partition & if the result match then drop that partition from table
+   and processed to insert the data one more time
+
+2.spark.config.set("spark.sql.sources.partitionOverWriteMode","dynamic")
+  check the table exit or not
+  if(spark._jsparkSession.catalog().tableExists("tbl_name")):
+     df.write.mode("overwrite").insertInto("table_name")
+  else:
+     df.write.mode("overwrite").partitionBy("race_id").format("parquet").saveAsTable("tbl_name")
+
+  and in df partition column should be the last one
+  df = first_df.select(name,last,dob,month,race_id)
+
+so 2 option will be the best why because in 1st option we have to remove and re-insert the data.
+
+
+
+infer schema
+-------------
+True is not okay for production because it has to scan the entire data and make it datatype.
+if you have less data set then you may go with True option.
+
+
+Dynamic resource allocation:
+-----------------------------
+If you enabled the D.R.A there will be a problem that will be a chance to lose the metadata of the
+first finished executor.
+why because first executor finished their task and waiting for other executor
+to consume at that time executor is idle due to that spark will terminate that ideal executor ,
+so to avoid this we have to set a property.
+ spark.shuffle.service.enabled = true
+ spark.dynamicAllocation.enabled= true
+
+
+OOM:
+---
+Driver memory issue  :
+  collecting from executors
+  broadcast huge data
+Executor memory issue:
+   big partition
+   yarn memory overhead
+   more cores (high concurrency)
+   
+   
+   
+Spark streaming settings :
+  spark.streaming.kafka.maxRatePerPartition = 50
+  spark.streaming.backpressure.enabled=true
+  
+  
+  Memory calc:
+  --------------
+  https://www.youtube.com/watch?v=CrLXa9hEprE
+ available resource
+ 6 machines
+ 16 cores in each machine
+ 64 GB memory in each machine
+ 
+ best fit -
+ executors & executor cores:
+  no of cores =  total number of available cores( 16 X 6) 96 - no of machines = 90
+  no of cores per machine = 90/6 = 15
+  no of executor cores = 5 (in each executor these many cores will run we can choose any number but
+  if you increase the number there it will be a concurrency issue will occur 4 or 5 is the best option and spark
+  team also suggest to use max is 5)
+  no of executor per machine = 15/5 =3
+  
+  Memory:
+   available per machine  = 63 (1 gb kept per os & other)
+   available per executor = 63/3 = 21GB
+   yarn overhead = 2GB
+   per executor memory = 19GB
+
+   spark.executor.cores = 5
+   spark.executor.instance =3
+   spark.executor.memory=19g
+   spark.yarn.executor.memoryOverHead=2g
+   spark.driver.memory=2g -> by default 1g
+smaple for driver:
+   spark.driver.memory=4g
+   spark.driver.memoryOverHead= 7 to 10 %
+   spark.executor.memoryOverHead - 7 to 10 %
+   spark.memory.offheap.size
+
+
+ Spark Memory Management
+ ------------------------
+ https://www.youtube.com/watch?v=RPGCJXmTGWw
+ There are 3 parts,
+Spark Memory :
+  storage memory - refers to that used for  caching and propagating internal data across the cluster.
+  execution memory - refers to that used for computation in shuffles ,joins,sorts and aggregations.
+User Memory :This part of memory is what remains after the spark memory.THis can be used the user to store
+        the data structures.
+Reserved Memory: by default 300 mb reserved is used by the system.this memory doesn't participate in the
+            spark memory calculation.
+
+ unified memory management : means there is no fix memory for the both storage & execution memory.
+ On Heap & Off Heap : On heap data will be eligible for garbage collection but not the off heap
+ spark.memory.offHeap.enable= ture & spark.memory.offHeap.size
+  
+  avro vs parquet vs orc(optimized row column)
+  ---------------------------------------------
+  avro is store the data row format
+  we can't fetch particular column from row
+  schema evaluation
+  
+  parquet is store the data in column format
+  we can fetch particular column from row
+  compression available
+
+  ORC (Optimized Row Columnar) and Parquet are two popular big data file formats.
+  Parquet is generally better for write-once, read-many analytics,
+  while ORC is more suitable for read-heavy operations.
+   ORC is optimized for Hive data, while Parquet is considerably more efficient for querying
+  
+  Repartition vs Coalesce:
+  ------------------------
+  Repartition will shuffle the data between the machines and do the required partitions
+  all re-partitions will have the same amount of data
+  Both can possible to increase or decrease the no of partitions
+  slower than coalesce
+  
+  Coalesce will avoid shuffle the data between the machines and will not follow the exact partitions as per request
+  all partitions will not have the same amount of data
+  only decrease the no of partition will be possible
+
+  we can do the repatition by using the 2 methods
+  df.repartition(numberofrepartition,col.*)
+  df.repartitionByRange(numberofrepartition,col.*)
+
+  df.coalesce(numberofpartition)
+  
+  Partitions vs Bucketing
+  ----------------------
+  partition is help us to improve the query performance
+  
+  if we create second level of partition it will end up with small files. so use the bucketing
+  
+  no of buckets = size of your data /128 mb
+  each bucket will store 128 mb 
+  
+  
+  small files problem
+  --------------------
+  small file problem in Hadoop?
+ to me if we have lots of small files in cluster that will increase burden to the namenode,  it stores the metadata of the files
+ so if we have lots of small files name node keep noting address of files and hence if master down cluster also gone down.
+In addition to this spark will also need to create more executor tasks... This will create unnecessary overhead and slow down your data processing
+  
+ BroadCast
+ ----------
+ In Apache Spark, a broadcast variable is a read-only, shared variable that allows you to
+ efficiently distribute large read-only data structures
+ (such as lookup tables or other reference data) to all nodes in a Spark cluster.
+
+Broadcast variables are used to reduce data transfer overhead and improve the performance of
+certain Spark operations, especially when working with transformations that require access to
+external data on each executor.
+
+When you use a regular variable in a Spark transformation, the variable's value is sent separately
+to each executor node, which can be inefficient if the variable is large or accessed frequently.
+In contrast, a broadcast variable is sent once from the driver node to all executor nodes and is
+cached in memory for efficient access during the computation.
+
+ Here's a basic example of how to use a broadcast variable in Spark:
+
+ ```scala
+ import org.apache.spark.sql.SparkSession
+
+ object BroadcastExample {
+   def main(args: Array[String]): Unit = {
+     val spark = SparkSession.builder()
+       .appName("BroadcastExample")
+       .master("local[*]")
+       .getOrCreate()
+
+     // Large read-only data structure (in this case, a lookup table)
+     val lookupTable = Map("A" -> 1, "B" -> 2, "C" -> 3)
+
+     // Broadcast the lookupTable to all executor nodes
+     val broadcastLookupTable = spark.sparkContext.broadcast(lookupTable)
+
+     // Data to be processed (a small RDD in this example)
+     val data = Seq("A", "B", "C", "A", "C", "B","D")
+     val dataRDD = spark.sparkContext.parallelize(data)
+
+     // Process data using the broadcast variable
+     val resultRDD = dataRDD.map { key =>
+       val lookupValue = broadcastLookupTable.value.getOrElse(key, 0)
+       (key, lookupValue)
+     }
+
+     // Display the result
+     resultRDD.collect().foreach(println)
+
+     spark.stop()
+   }
+ }
+ ```
+
+In this example, we create a lookup table as a regular Scala Map and then broadcast it using the
+`sparkContext.broadcast()` method. The `broadcastLookupTable` is then used in the `map`
+transformation of an RDD to access the lookup table efficiently on each executor node.
+
+By using a broadcast variable, Spark ensures that the lookup table is efficiently shared among
+all nodes, preventing unnecessary data transfers and improving the performance of the computation.
+
+Broadcast variables are particularly useful when you have large lookup tables or other reference
+data that need to be accessed frequently during Spark transformations.
+They help to optimize the performance of Spark jobs, especially when dealing with join operations,
+lookup-based transformations, or user-defined functions that rely on external data.
+
+By default, only 10 MB of data can be broadcasted.
+
+spark.conf.get(spark.sql.autoBroadcastJoinThreshold) can be increased up to 8GB
+
+There is an upper limit in terms of records as well. We can't broadcast more than 512m records.
+So its either 512m records or 8GB which ever limit hits first.
+
+spark optimisation for various scenarios
+-----------------------------------------
+https://www.youtube.com/watch?v=5N0CWeRJ3NU
+
+Optimizing Apache Spark applications is essential to achieve better performance and
+efficiency when dealing with large-scale data processing. Spark provides several
+optimization techniques for various scenarios. Here are some common scenarios and
+corresponding optimization techniques:
+
+1. **Data Serialization**: Choosing the right data serialization format can significantly
+impact performance. Use efficient serialization formats like Avro, Parquet, or ORC to
+reduce the data size and improve I/O and network performance.
+
+2. **Data Compression**: Compressing data can reduce storage requirements and
+improve data transfer over the network. Spark supports various compression codecs
+like Snappy, Gzip, and LZF. Choose the appropriate compression based on the data
+characteristics and workload.
+
+3. **Partitioning**: Properly partitioning RDDs/DataFrames can enhance performance by
+ensuring an even distribution of data across executors. It can also help in minimizing
+data shuffling during transformations and aggregations.
+
+4. **Broadcasting**: Use broadcast variables (as discussed in the previous response) for
+efficiently sharing large read-only data structures among executor nodes.
+
+5. **Memory Management**: Adjust memory settings, such as `executor-memory`,
+`driver-memory`, and `spark.memory.fraction`, based on your cluster resources and
+the nature of your workload.
+
+6. **Caching and Persistence**: Cache frequently accessed data in memory using the
+`cache()` or `persist()` methods to avoid recomputations and improve performance for
+iterative algorithms or when using the same data multiple times.
+
+RDD cache() method default saves it to memory (MEMORY_ONLY) whereas persist() method
+is used to store it to the user-defined storage level
+
+7. **Shuffling**: Minimize data shuffling, as it can be a costly operation.
+ Use techniques like map-side aggregation, combiners, and appropriate partitioning to
+ reduce the amount of data shuffling.
+
+8. **Data Locality**: Maximize data locality by placing Spark workers on nodes where
+data resides. Utilize data locality-aware scheduling (YARN and Mesos) to optimize data access.
+
+9. **Coalesce and Repartition**: Use `coalesce()` or `repartition()` to control the
+number of partitions in RDDs/DataFrames. It helps in reducing data skew and
+improving parallelism during processing.
+
+10. **Predicate Pushdown**: Leverage predicate pushdown capabilities of Spark when
+working with data sources like Parquet or ORC. It allows filtering data at the data source
+level before loading it into Spark, reducing data loading overhead.
+
+11. **Column Pruning**: For SQL queries or DataFrame operations, use column pruning to
+read only the necessary columns from storage, minimizing I/O.
+
+12. **Resource Allocation**: Adjust the number of executors, executor cores, and memory
+settings based on the available cluster resources and the nature of the workload.
+
+13. **Optimized UDFs**: Optimize user-defined functions (UDFs) for better performance.
+ Prefer built-in Spark functions or use UDFs with vectorized execution when possible.
+
+14. **Hardware Optimization**: Consider hardware aspects such as disk speed,
+network bandwidth, and memory capacity when designing your Spark infrastructure.
+
+15. **Monitoring and Profiling**: Monitor your Spark applications using Spark's built-in
+Web UI, and use profiling tools to identify performance bottlenecks and areas for improvement.
+
+Remember that optimization techniques might vary based on the nature of your data
+and specific use cases. It's essential to analyze the characteristics of your
+Spark application and infrastructure to apply the most appropriate optimization strategies.
+Regularly profiling and testing your Spark applications under various conditions can help
+ensure optimal performance.
+
+window based problems
+--------------------
+Window-based operations in Apache Spark are powerful tools for performing calculations
+that require access to a defined window of data, often based on partitioned data or
+ordered data within each partition.
+These operations allow you to perform computations over sliding or fixed-size windows of data,
+making them ideal for tasks such as aggregations, ranking, time-series analysis, and more.
+ Spark provides window functions through the `org.apache.spark.sql.functions` package in
+ the DataFrame API.
+
+Some common window-based operations in Spark include:
+
+1. **Window Partitioning**: Dividing data into partitions based on a specified column or
+expression using the `partitionBy` method. This ensures that operations are performed
+independently within each partition.
+
+2. **Ordering**: Defining the order of data within each partition using the `orderBy` method.
+It is crucial for window functions like `lead`, `lag`, and time-based functions.
+
+3. **Sliding Windows**: Analyzing data over a sliding window of a certain number of rows or
+a range of values using the `rangeBetween` or `rowsBetween` methods.
+
+4. **Aggregations**: Computing aggregate functions (e.g., sum, average, max, min) over a
+defined window of data using functions like `sum`, `avg`, `min`, `max`, etc., combined with
+`over` to specify the window.
+
+5. **Ranking and Window Functions**: Using functions like `rank`, `dense_rank`, `row_number`,
+`ntile`, etc., to assign rankings or row numbers within a window based on specific criteria.
+
+6. **Windowing with Time-based Data**: Analyzing data over time windows using functions like
+`window`, which allows you to define fixed-size or sliding time intervals.
+
+Here's an example of how you can use window-based operations in Spark:
+
+```scala
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{SparkSession, DataFrame}
+
+object WindowExample {
+  def main(args: Array[String]): Unit = {
+    val spark = SparkSession.builder()
+      .appName("WindowExample")
+      .master("local[*]")
+      .getOrCreate()
+
+    import spark.implicits._
+
+    // Sample data
+    val data = Seq(
+      ("Alice", "A", 100),
+      ("Bob", "A", 200),
+      ("Alice", "B", 300),
+      ("Bob", "B", 400),
+      ("Alice", "A", 150),
+      ("Bob", "A", 250)
+    )
+
+    val df: DataFrame = data.toDF("Name", "Category", "Value")
+
+    // Window specification
+    val windowSpec = Window.partitionBy("Name").orderBy("Category")
+
+    // Calculate average value for each category within each name
+    val avgValue = avg(col("Value")).over(windowSpec)
+
+    // Add the average value column to the DataFrame
+    val resultDF = df.withColumn("AverageValue", avgValue)
+
+    resultDF.show()
+
+    spark.stop()
+  }
+}
+```
+
+In this example, we calculate the average value for each category within each name using
+window-based operations. The `Window.partitionBy("Name").orderBy("Category")`
+specifies the window partitioning and ordering, and the `avg(col("Value")).over(windowSpec)`
+calculates the average value over the window.
+
+Window-based operations in Spark are a powerful tool for efficiently performing complex
+calculations on data within a specific context, and they significantly extend the
+capabilities of Spark's DataFrame API.
+
+data skew
+------------
+Data skew in Apache Spark refers to an uneven distribution of data across partitions or
+tasks, leading to certain partitions or tasks processing significantly more data than others.
+ Data skew can severely impact the performance and efficiency of Spark applications,
+ as it can result in some tasks taking much longer to complete than others, leading to
+ stragglers and overall slower execution.
+
+Data skew can occur due to various reasons, including:
+
+1. **Inappropriate Partitioning**: If data is not partitioned properly,
+certain keys or values may be concentrated in a few partitions, causing data imbalance.
+
+2. **Skewed Keys**: In some datasets, certain keys may have much higher cardinality or
+frequency than others, leading to skewed distribution.
+
+3. **Join Operations**: Joining two datasets on a common key can introduce skew if the
+key is not evenly distributed between the datasets.
+
+4. **Data Skew in Input Data**: Skewed data can be inherited from the input data itself,
+ especially when reading from external sources.
+
+5. **Aggregations**: Aggregations can introduce skew if some keys have much larger groups
+than others.
+
+Data skew can have a cascading effect on the entire Spark application, causing performance
+bottlenecks, resource wastage, and potential out-of-memory errors. Therefore, it's essential
+to detect and address data skew to ensure the smooth and efficient execution of Spark jobs.
+
+Here are some strategies to handle data skew in Spark:
+
+1. **Partitioning Strategies**: Choose appropriate partitioning strategies,
+such as salting keys, using hash partitioning, or range partitioning, to evenly distribute
+data across partitions.
+
+2. **Skewed Join Handling**: For join operations, consider using techniques like broadcast
+joins, bucketing, or sampling to mitigate the impact of data skew.
+
+3. **Filtering and Sampling**: If possible, filter or sample skewed data to reduce its
+ impact on the application.
+
+4. **Custom Partitioning**: Implement custom partitioners based on specific data
+characteristics to achieve better load balancing.
+
+5. **Bucketing**: Use bucketing to distribute data evenly across partitions based on
+hash bucketing.
+
+6. **Skewed Data Repartitioning**: For skewed partitions, repartition the data into more
+partitions to achieve better load balancing.
+
+7. **Broadcasting Small Tables**: When joining a small table with a large table,
+consider broadcasting the small table to avoid data skew.
+
+8. **Dynamic Allocation**: Enable dynamic resource allocation in Spark to optimize the
+allocation of resources based on the workload.
+
+9. **Monitoring and Profiling**: Monitor the job execution using Spark UI and
+profiling tools to identify tasks or partitions with skew and take appropriate actions.
+
+10. **Increase Parallelism**: Increase the number of executors, cores, or memory to
+allow for more parallel processing and better load balancing.
+
+Data skew is a common challenge in distributed data processing systems like Spark.
+By applying appropriate data partitioning techniques, optimizing join operations,
+and closely monitoring job performance, you can mitigate the impact of data skew and
+improve the efficiency and reliability of your Spark applications.
+
+how map reduce works different stages?
+-----------------------------------------
+
+https://www.guru99.com/introduction-to-mapreduce.html
+
+MapReduce is a programming model and data processing paradigm used in distributed computing systems,
+ popularized by Apache Hadoop. It consists of two main stages: the Map stage and the Reduce stage,
+ each responsible for specific data transformations.
+
+1. **Map Stage**:
+
+   - **Input Split**: The input data is divided into smaller chunks called input splits.
+   Each input split is processed by an individual Mapper task. Input splits are typically determined
+   based on the size of the input data and the available processing resources.
+
+   - **Mapper**: Each Mapper task processes an input split independently. The Mapper takes the input data,
+   applies a user-defined Map function to each record, and produces intermediate key-value pairs.
+   The Mapper tasks run in parallel across the cluster, processing different input splits concurrently.
+
+   - **Shuffling and Sorting**: After the Mappers complete their tasks, the intermediate key-value pairs are
+      collected and grouped based on their keys. The data is then partitioned and sorted by key across multiple
+       Reducer tasks. This process is called shuffling and sorting, and it is crucial for aggregating related
+       data in the Reduce stage.
+
+2. **Reduce Stage**:
+
+   - **Reducer**: Each Reducer task receives a subset of the shuffled and sorted key-value pairs.
+   The Reducer applies a user-defined Reduce function to the values associated with each key and produces
+   the final output for that key. Reducer tasks run in parallel across the cluster, processing different
+   sets of key-value pairs concurrently.
+
+   - **Output**: The output of each Reducer is written to the final output file(s) on the distributed
+   file system, representing the result of the MapReduce job.
+
+The MapReduce process ensures that data processing is distributed across multiple nodes in the cluster,
+enabling parallel execution of tasks and efficient data processing on large-scale datasets.
+The key concept of MapReduce is that the computations are broken down into smaller, independent tasks that
+can be executed in parallel on different nodes, and the results are then combined to produce the final output.
+
+It's important to note that while MapReduce is a powerful and widely used data processing paradigm,
+newer data processing frameworks like Apache Spark and Apache Flink offer more advanced features and
+optimizations, making them more suitable for many modern big data applications. Nonetheless,
+the MapReduce model and its core principles remain influential and have paved the way for various distributed
+data processing systems.
+
+GroupByKey vs reduceByKey
+-------------------------
+https://sparkbyexamples.com/spark/spark-groupbykey-vs-reducebykey/?expand_article=1
+
+BackPressure:
+---------------
+if there is a problem in spark job and it not consumed the data for 1 or 2 days then lag got increased to 2 million.
+Then we have re-started the spark job but job is getting failed due to this spark is trying to read the entire data
+from kafka due to this will produce the OOM.
+
+to avoid this we need to set the below properties
+spark.streaming.backpressure.enable=true
+spark.streaming.kafka.maxRatePerPartition=50
+
+Accumulator
+-------------
+we will store the executor error in the variable.
+
+spark.sql.shuffle.partitions=20 by default its 200
+
+spark architecture
+------------------
+Apache Spark follows a distributed computing architecture designed to process and analyze large-scale
+data efficiently. It enables data processing and computation across a cluster of machines,
+providing high availability, fault tolerance, and parallelism.
+The key components of the Spark architecture are:
+
+1. **Driver Program**:
+   - The driver program runs on the master node and is responsible for orchestrating the entire Spark application.
+   - It defines the data transformations and actions to be executed on the distributed dataset.
+   - The driver program creates the SparkContext, which is the entry point for interacting with Spark and
+   coordinating the execution of tasks on the worker nodes.
+
+2. **Cluster Manager**:
+   - The cluster manager is responsible for managing the allocation of resources and scheduling tasks across
+   the worker nodes in the Spark cluster.
+   - Common cluster managers used with Spark are Apache Mesos, Hadoop YARN, and Standalone Spark Cluster
+   Manager.
+
+3. **SparkContext**:
+   - The SparkContext is the entry point for any Spark functionality and acts as a bridge between the driver
+   program and the cluster manager.
+   - It communicates with the cluster manager to request resources and execute tasks on the worker nodes.
+   - The SparkContext is responsible for maintaining the application state and ensuring fault tolerance.
+
+4. **Worker Nodes (Executor Nodes)**:
+   - Worker nodes are the machines in the cluster where the actual data processing takes place.
+   - They are responsible for executing tasks assigned to them by the driver program through the SparkContext.
+   - Each worker node hosts one or more executors, which are separate JVM processes running Spark tasks.
+
+5. **Task**:
+   - A task is a unit of work that can be executed on a single executor.
+   - Each Spark operation, such as a transformation or action, is divided into smaller tasks that can be
+   executed in parallel on the worker nodes.
+   - Tasks are distributed across the cluster by the SparkContext and executed by the executors.
+
+6. **Data Partitioning**:
+   - Spark divides the input data into smaller partitions, and each partition is processed independently by
+   a separate task on a worker node.
+   - Data partitioning enables parallel processing of data, ensuring efficient utilization of resources.
+
+7. **Distributed Dataset (RDD or DataFrame)**:
+   - The core data structure in Spark is the Resilient Distributed Dataset (RDD) or the DataFrame.
+   - RDDs are immutable, fault-tolerant, and distributed collections of objects that can be processed in
+    parallel.
+   - DataFrames provide a higher-level API for working with structured and semi-structured data.
+
+8. **Shuffling and Data Exchange**:
+   - Shuffling is the process of redistributing data across partitions and is often required during certain
+   Spark operations, like groupBy or join.
+   - Shuffling involves data exchange between the worker nodes, which can be a costly operation.
+
+9. **Fault Tolerance**:
+   - Spark provides fault tolerance through lineage information, which allows it to recompute lost data in
+   case of a worker node failure.
+   - The driver program stores the information about transformations and actions applied to the data,
+   enabling recovery in case of node failures.
+
+The Spark architecture is designed to maximize parallelism, fault tolerance, and performance while
+efficiently processing large-scale data across a distributed cluster of machines. It leverages in-memory
+data processing and a DAG (Directed Acyclic Graph) execution model to optimize the execution of Spark jobs.
+The modular design and flexibility of the Spark architecture have made it one of the most widely used
+distributed data processing frameworks in the big data ecosystem.
+
+Narrow vs wide Transformation
+------------------------------
+In Narrow Trn data will not shuffle accros the network.
+ex : map ,filter
+wid trn : groupbyKey & reduceByKey
+
+sparkcontext vs sparksession
+------------------------------
+https://www.youtube.com/watch?v=qQ8pidVduBA
+spark session is combination of the all context like spark  ,hive & sql context
+spark context is the entry point of any spark application and used to all spark features and
+require the sparkConf.
+val conf  = new SparkConfig().setMaster("local").setAppName("dummyapp")
+val sc = new SparkContext(conf)
+
+multiple sparksession can create to pointing to the single sparkcontext.
+All sparkSessions will point to the same sparkContext with in spark application.
+
+If you want to allow the spark to create multiple sparkContext then enable the below prop.
+spark.driver.allowMultipleContext=true
+Multiple contexts in the same jvm is not encouraged and is not considered as good practice.
+Crashing of 1 spark context can effect the other.
+
+joins in spark
+--------------
+
+https://medium.com/plumbersofdatascience/exploring-the-different-join-types-in-spark-sql-a-step-by-step-guide-49342ffe9578
+
+Join types:-
+In Apache Spark, joins are operations used to combine data from two or more datasets (DataFrames or RDDs) based on common keys. Spark supports several types of joins, allowing you to perform a variety of data manipulations and transformations. The common types of joins in Spark are:
+
+1. **Inner Join**:
+   - The inner join returns the rows where there is a match between the keys in both datasets.
+   - Only the rows with matching keys from both datasets are included in the result.
+   - The syntax for an inner join in Spark SQL is:
+     ```scala
+     val resultDF = df1.join(df2, "commonKey")
+     ```
+
+2. **Left Outer Join**:
+   - The left outer join returns all the rows from the left dataset and the matching rows from the right dataset. If there is no match, it includes NULL values for the columns from the right dataset.
+   - The syntax for a left outer join in Spark SQL is:
+     ```scala
+     val resultDF = df1.join(df2, Seq("commonKey"), "left_outer")
+     ```
+
+3. **Right Outer Join**:
+   - The right outer join returns all the rows from the right dataset and the matching rows from the left dataset. If there is no match, it includes NULL values for the columns from the left dataset.
+   - The syntax for a right outer join in Spark SQL is:
+     ```scala
+     val resultDF = df1.join(df2, Seq("commonKey"), "right_outer")
+     ```
+
+4. **Full Outer Join**:
+   - The full outer join returns all the rows from both datasets. If there is a match, it includes the corresponding rows from both datasets. If there is no match, it includes NULL values for the columns from the non-matching dataset.
+   - The syntax for a full outer join in Spark SQL is:
+     ```scala
+     val resultDF = df1.join(df2, Seq("commonKey"), "outer")
+     ```
+
+5. **Cross Join**:
+   - The cross join (also known as Cartesian join) returns the Cartesian product of the rows from both datasets.
+   - It combines each row from the left dataset with each row from the right dataset.
+   - The syntax for a cross join in Spark SQL is:
+     ```scala
+     val resultDF = df1.crossJoin(df2)
+     ```
+
+Spark joins are powerful operations for combining datasets based on common keys and performing complex data manipulations. However, it's important to consider the size of the datasets and the join type, as certain join operations can result in significant data shuffling and impact the performance of the Spark job. To optimize join performance, you can use techniques like bucketing, broadcasting, or leveraging join hints in Spark SQL. Additionally, partitioning the data properly can help reduce data skew and improve join performance in distributed environments.
+
+
+Join Condition:-
+
+Based on the join condition joins are classified into 2 broad categories,Equi  and Non equi joins.
+
+Equi join: will involve the one or more equality conditions that needs to satisfied simultaneously.
+ex: A.x = B.x AND A.y = B.y
+Non Equi join: don't involve quality condition.
+
+Join execution:-
+
+shuffle hash join: is the default spark join it will make sure that each partition will have the same
+keys by partitioning by the second dataset with same default partitioner as the first .
+
+DAG
+----
+https://www.youtube.com/watch?v=Q-wWN6G6Q9g
+Directed Acyclic Graph in spark is a set of vertices and edges, where vertices represent the RDDs and the
+edges represent the operation to be applied on RDD.
+
+On the calling of the Action , the created DAG submits to DAG scheduler which further splits the graph
+into the stages of the task based on the shuffling . New stage is created based on the data shuffling requirement.
+
+The interpreter is the first layer. using scala interpreter spark interprets the code with
+some modifications.
+spark creates an operator graph when you enter your code in spark console.
+When you call the action on spark RDD at high level ,spark submit the operator graph to the DAG scheduler.
+
+Divide the operators into stages of the task in the DAG scheduler.A stage contains task based on the partition of the
+input data.
+The stages pass to the task scheduler and it launches task through cluster manager.
+The worker execute the task on the slave Datanodes.
+How DAG will work
+we can apply 2 types of RDD transformation.narrow and wide
+see the above video will have details
+
+spark execution model:
+----------------------
+https://www.youtube.com/watch?v=JvKWWPmTVF0
+https://www.youtube.com/watch?v=J6s8PxdxKPM
+
+df.explain(extended=true) -> by default it will display the physical plan if you want to see
+the both plan then use extended.
+
+unresolved logical plan -> catalyst optimizer
+catalyst optimizer : parsed -> analyzed -> optimized logical plan then submit to physical plan
+physical plan : physical plan -> cost model -> selected physical plan -> RDDs
+
+The Catalyst Optimizer is a key component of Apache Spark's SQL and DataFrame API. It is a rule-based query optimizer that transforms logical plans (representing the user's SQL query) into optimized physical plans (representing the execution plan). The primary goal of the Catalyst Optimizer is to improve the performance of Spark SQL queries by applying various optimization techniques.
+
+The Catalyst Optimizer performs the following main tasks:
+
+1. **Logical Plan Optimization**:
+   - The optimization process starts with the user's SQL query, which is represented as an abstract syntax tree (AST) called the logical plan.
+   - The Catalyst Optimizer applies a series of logical plan optimizations, such as constant folding, predicate pushdown, and common subexpression elimination, to simplify and optimize the logical plan.
+
+2. **Predicate Pushdown**:
+   - The Catalyst Optimizer pushes the filter predicates as close to the data source as possible to minimize data movement and improve query performance.
+   - By pushing the filter predicates closer to the data source (e.g., pushing down filters to the underlying storage engine), Spark can avoid reading unnecessary data.
+
+3. **Constant Folding**:
+   - The Catalyst Optimizer evaluates constant expressions at compile time, replacing them with their actual values in the logical plan.
+   - This optimization eliminates the need to evaluate the same constant expression repeatedly during query execution.
+
+4. **Expression Simplification**:
+   - The Catalyst Optimizer simplifies expressions in the logical plan to reduce computation overhead.
+   - For example, it may merge two consecutive `filter` operations with the same condition into a single filter operation.
+
+5. **Join Reordering and Optimization**:
+   - The Catalyst Optimizer explores different join strategies and reorders joins to find the most efficient join plan.
+   - It considers factors like join selectivity, join type, and the size of the joined datasets to optimize join operations.
+
+6. **Cost-Based Optimization**:
+   - The Catalyst Optimizer uses cost-based optimization techniques to estimate the cost of different query execution plans and selects the plan with the lowest cost.
+   - Cost-based optimization is particularly useful for complex queries with multiple join operations.
+
+7. **Physical Plan Generation**:
+   - Once the logical plan is optimized, the Catalyst Optimizer generates the physical plan, which represents the actual execution plan using Spark's DataFrame operators and RDD transformations.
+   - The physical plan considers data partitioning, data shuffling, and other execution details to minimize data movement and optimize task distribution across the cluster.
+
+The Catalyst Optimizer is a powerful tool that helps Spark SQL to automatically optimize and improve the performance of SQL queries without the need for manual tuning. It allows Spark to take advantage of various optimization techniques to efficiently process large-scale data and provides better control over query execution to make the most efficient use of cluster resources.
+
+
+
+
