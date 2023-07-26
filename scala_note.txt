@@ -1,0 +1,382 @@
+Why scala prefers immutability?
+------------------------------
+
+Using immutability prevent mistakes in distributed systems and provide thread-safe data.
+However, we can also use mutable objects if it’s really necessary.
+
+An expression is referentially transparent if it can be replaced with its value without changing
+the program’s behavior. This can be achieved by using immutable objects.
+And, this is why immutable objects are the first-class citizens in Scala.
+https://stackoverflow.com/questions/210835/what-is-referential-transparency
+Here is an example of a referential transparent function:
+int plusOne(int x)
+{
+  return x+1;
+}
+
+//global G
+int G = 10;
+In contrast there is the concept of referential opaqueness. This means the opposite. Calling the function may not always produce the same output.
+int plusG(int x)
+{//G can be modified externally returning different values.
+  return x + G;
+}
+
+
+With immutable objects, we can use concurrency safely. This is because there is no danger in
+having multiple threads access the same data at the same time when it cannot be changed.
+
+However, using immutable objects and collections can cause performance issues.
+As we have seen, constructing a new copy of a collection in order to add an element is less efficient
+than modifying an existing collection.
+
+
+Scala, like many functional programming languages, promotes immutability as a preferred programming style for several reasons:
+
+Thread Safety:
+Immutability eliminates the possibility of data being modified concurrently by multiple threads,
+ leading to fewer race conditions and easier-to-reason-about multithreaded code.
+ This can improve the overall stability and reliability of concurrent applications.
+
+Predictable Behavior:
+Immutable objects have a stable state throughout their lifetime,
+making them more predictable and easier to understand.
+This predictability can help avoid bugs related to unintended side effects caused by mutable state changes.
+
+Functional Programming Paradigm:
+Scala encourages functional programming,
+which emphasizes the use of immutable data structures and pure functions.
+Pure functions have no side effects and always produce the same output for a given input,
+which makes code more modular and easier to test and reason about.
+
+Safety in Concurrency:
+When multiple parts of a program are designed to use immutable data,
+it becomes easier to reason about how data flows through the program,
+reducing the chances of subtle concurrency bugs.
+
+Performance Optimization:
+Immutability can lead to certain performance optimizations,
+such as sharing immutable data between different parts of the code safely,
+without the need for costly defensive copying.
+
+Simplicity:
+Immutable data structures and functional programming paradigms often lead to simpler,
+ more concise, and more elegant code.
+ It encourages developers to focus on the transformations and operations performed on data rather
+ than managing mutable state.
+
+However, it's important to note that immutability is not always the best choice for every scenario.
+There are cases where mutable data structures or in-place modifications are more efficient or necessary.
+ Scala provides both immutable and mutable data structures, allowing developers to choose the appropriate
+ approach based on the specific requirements and performance considerations of their applications.
+
+In general, Scala's preference for immutability stems from the desire to create reliable,
+maintainable, and scalable software, leveraging the benefits of functional programming principles
+while still providing the flexibility to use mutable constructs when needed.
+It's ultimately up to the developer to strike the right balance and choose the most suitable approach
+for each situation.
+
+
+What are scala traits?
+----------------------
+
+It allows you to define reusable and composable units of behavior that can be mixed into classes.
+Traits are similar to interfaces in other programming languages but offer more functionality,
+including concrete implementations of methods.
+in scala we can't use the multiple inheritence so poly extends colr with shape
+colr is abstract class and shape is trait
+https://www.youtube.com/watch?v=KARUSWj8sZs
+https://www.youtube.com/watch?v=1HsiiMpMfk0
+first will be the abstract then follow the trait class
+
+Here are the key characteristics of Scala traits:
+
+Definition: A trait is defined using the trait keyword followed by the trait name and
+an optional parameter list.
+It can also have a body containing method definitions, fields, and other member declarations.
+
+Multiple inheritance:
+ Scala supports multiple inheritance of traits, which means a class can extend multiple traits.
+ This enables a class to inherit behavior from multiple sources.
+
+Composition: Traits can be mixed into classes using the with keyword during class definition.
+ This process is called "mixin composition." A class can extend a single class but
+ mix in multiple traits to incorporate their functionality.
+
+Abstract and concrete members: Traits can have both abstract and concrete members. Abstract members are declared without implementations, and classes that mix in the trait must provide implementations for these members. Concrete members have implementations and can be directly used in classes that use the trait.
+
+Overrides and super calls: A class that mixes in a trait can override the abstract or concrete members of the trait. Inside the overridden methods, you can use the super keyword to call the implementation of the trait's method.
+
+Default implementations: Traits can provide default implementations for methods. If a class doesn't provide an implementation for a concrete method in the trait, the default implementation from the trait is used.
+
+In this example, the Greeting trait defines a method greet(), and the Person class extends the Greeting trait. The Person class can access the greet() method from the Greeting trait and call it using the sayHello() method.
+
+Traits are a fundamental building block for creating reusable and modular code in Scala,
+promoting code organization and facilitating the development of more flexible and
+maintainable applications.
+
+Traits are used to share interfaces and fields between classes.
+They are similar to Java 8’s interfaces. Classes and objects can extend traits,
+but traits cannot be instantiated and therefore have no parameters.
+
+When to Use Traits?
+-------------------
+If the behavior will not be reused, then make it a concrete class.
+It is not reusable behavior after all.
+
+If it might be reused in multiple,
+unrelated classes, make it a trait.
+ Only traits can be mixed into different parts of the class hierarchy.
+
+If you want to inherit from it in Java code, use an abstract class.
+
+If you plan to distribute it in compiled form,
+and you expect outside groups to write classes inheriting from it,
+you might lean towards using an abstract class.
+
+If efficiency is very important, lean towards using a class.
+
+
+
+Companion object :
+scala dont have static object so this is similar like that
+for the companion object we no need to mention the new like val s = List(1,2)
+
+What are case classes?
+-----------------------
+Scala case classes are just regular classes which are immutable by default and
+decomposable through pattern matching.
+ It uses equal method to compare instance structurally.
+ It does not use new keyword to instantiate object.
+ All the parameters listed in the case class are public and immutable by default.
+
+ In Scala, case classes are a special kind of class that is primarily used to represent immutable data.
+ They are designed to provide a concise and convenient way to define classes that
+ primarily serve as containers for data, without the boilerplate associated with regular classes.
+
+ Here are some key characteristics and features of case classes:
+
+ 1. **Immutability**: By default, case classes are immutable, meaning their instances cannot be modified
+ after creation. This immutability is enforced by making the class fields
+ `val` (immutable) rather than `var` (mutable).
+
+ 2. **Default implementations**: Case classes automatically provide implementations for common methods
+ like `equals`, `hashCode`, and `toString`.
+  They are based on the fields of the case class, making it easy to compare instances and
+  use them in collections like sets and maps.
+
+ 3. **Pattern matching**: Case classes are commonly used in pattern matching due to their
+ syntactic sugar and built-in support for deconstruction.
+ Pattern matching allows you to extract values from case class instances in a concise and readable manner.
+https://www.javatpoint.com/scala-case-classes-and-case-object#:~:text=Scala%20case%20classes%20are%20just,public%20and%20immutable%20by%20default.
+
+ 4. **Companion object**: For every case class, Scala automatically generates a companion object.
+  The companion object includes factory methods to create instances of the case class without using
+  the `new` keyword.
+
+ 5. **Property accessors**: Case classes automatically create property accessors for their fields,
+ allowing you to access the fields directly without writing explicit getter methods.
+
+ 6. **Equality comparison**: Case classes define structural equality,
+ meaning instances with the same field values are considered equal.
+
+ Here's an example of a simple case class in Scala:
+
+ ```scala
+ case class Person(name: String, age: Int)
+ ```
+
+ In this example, we've defined a case class `Person` with two fields: `name` and `age`.
+ Scala automatically generates a companion object for the case class,
+ along with implementations of `equals`, `hashCode`, `toString`, and property accessors for the fields.
+
+ With case classes, you can create instances without using the `new` keyword:
+
+ ```scala
+ val person1 = Person("Alice", 30)
+ val person2 = Person("Bob", 25)
+ ```
+
+ You can also use pattern matching to extract values from case class instances:
+
+ ```scala
+ def processPerson(person: Person): String = person match {
+   case Person("Alice", age) => s"Hello Alice, you are $age years old!"
+   case Person(name, _) => s"Hello $name!"
+ }
+ ```
+
+ Case classes are especially useful when you need to work with immutable data,
+ perform pattern matching, and avoid boilerplate code for common class methods.
+  They are widely used in Scala for modeling data structures and messages in functional programming
+  and concurrent systems.
+
+  What is closure in scala?
+  -------------------------
+  In Scala, a closure is a function that captures variables from its lexical scope,
+   even when it is executed outside that scope.
+   In other words, a closure "closes over" the variables it references,
+    keeping them alive and accessible even after the enclosing code block has finished executing.
+    Closures are an important concept in functional programming and are frequently used in Scala.
+
+  Let's illustrate closures with an example:
+
+  ```scala
+  def addX(x: Int): Int => Int = {
+    (y: Int) => x + y
+  }
+
+  val addFive = addX(5)
+
+  println(addFive(3)) // Output: 8
+  ```
+
+  In this example, we have a function `addX` that takes an integer `x` as a parameter and returns a function that takes another
+   integer `y` and returns the sum of `x` and `y`.
+   When we call `addX(5)`, it returns a closure representing the function `(y: Int) => 5 + y`.
+   This closure "closes over" the variable `x`, which means it captures the value of `x` (which is 5) and keeps it available
+   even when the `addX` function has completed.
+
+  The resulting `addFive` function is a closure that has "closed over" the variable `x`, and it remembers the value `5` as its environment.
+   When we call `addFive(3)`, it uses the value of `x` (which is `5`) and adds it to the argument `3`, resulting in `8`.
+
+  Closures are powerful because they allow us to create functions that carry along their own context or configuration.
+  They are commonly used in functional programming paradigms, enabling the creation of higher-order functions, currying,
+  and partial function application.
+  Closures facilitate writing clean and modular code by encapsulating behavior and its associated data together.
+
+
+
+What are promises in scala?
+---------------------------
+
+  In Scala, promises are a concurrency abstraction that allows you to create a placeholder for a value that will be available at
+  some point in the future.
+  Promises are part of the Futures and Promises API, which is a mechanism for dealing with asynchronous computations and
+  concurrent programming in Scala.
+
+  Here's an overview of how promises work:
+
+  1. **Promise Creation**: To create a promise, you use the `Promise` object and call its `apply` method,
+  which returns a promise of a certain type.
+  The promise is a container for a value that will be completed or fulfilled in the future.
+
+  2. **Promise Completion**: Once you have a promise, you can complete it by using its `success` or `failure` methods.
+  You provide the corresponding value (in the case of success) or an exception (in the case of failure).
+  Once a promise is completed, it holds the value and cannot be changed or completed again.
+
+  3. **Future Extraction**: A promise and a future are related concepts. A future represents a read-only view of a promise's value.
+  You can get a future associated with a promise by calling the promise's `future` method.
+  This future allows you to read the value once it's available.
+
+  4. **Asynchronous Processing**: Promises are particularly useful in concurrent and asynchronous programming.
+  You can hand off the promise to another thread or pass it to a function that will complete it in the future.
+  Meanwhile, the current thread can continue with other tasks.
+
+  Here's a simple example of using promises and futures in Scala:
+
+  ```scala
+  import scala.concurrent.ExecutionContext.Implicits.global
+  import scala.concurrent.{Promise, Future}
+
+  // Create a promise that will hold an Int value
+  val promise = Promise[Int]()
+
+  // Get the associated future from the promise
+  val future = promise.future
+
+  // Simulate an asynchronous operation that completes the promise
+  Future {
+    // Simulate some computation or delay
+    Thread.sleep(1000)
+    // Complete the promise with a value
+    promise.success(42)
+  }
+
+  // Await the future to get the result (blocking, but not recommended in real applications)
+  val result = future.await // In a real application, use callbacks, onComplete, or other methods for non-blocking handling
+
+  println(result) // Output: 42
+  ```
+
+  In this example, we create a promise of type `Int`, get the corresponding future from it, and simulate an asynchronous operation
+  that completes the promise after a delay of 1000 milliseconds. We then obtain the result from the future using the `await` method
+  (blocking, but not recommended in real applications) and print the value, which will be `42` once the promise is fulfilled.
+
+  Promises in Scala are a powerful tool for dealing with asynchronous operations, concurrent programming, and handling the
+  results of computations that are not immediately available. However, it's essential to use them judiciously and be mindful of
+   potential pitfalls, such as deadlocks or blocking calls.
+   Asynchronous programming using callbacks or combinators like `map`, `flatMap`, and `onComplete` is generally preferred to
+   blocking operations in production code.
+
+What is string interpolation in scala?
+-------------------------------------
+String interpolation in Scala is a powerful feature that allows you to embed expressions and
+variables directly into string literals. It simplifies the process of constructing strings with
+dynamic content by providing a concise and readable syntax.
+
+You can think of futures and promises as two different sides of a pipe.
+On the promise side, data is pushed in, and on the future side, data can be pulled out.
+
+Scala supports two types of string interpolation:
+
+1. **s Interpolator**: The `s` interpolator is used for simple string interpolation.
+To use it, you prefix the string literal with the letter `s` and then enclose expressions or
+variables in curly braces `{}` within the string. The expressions inside the curly braces are
+evaluated and their results are inserted into the string.
+
+Example using `s` interpolator:
+
+```scala
+val name = "Alice"
+val age = 30
+
+val message = s"My name is $name and I am $age years old."
+println(message) // Output: "My name is Alice and I am 30 years old."
+```
+
+2. **f Interpolator**: The `f` interpolator is used for formatted string interpolation.
+It allows you to apply formatting to the interpolated values using the `%` character followed by
+format specifiers (similar to Java's `printf` format specifiers).
+
+Example using `f` interpolator:
+
+```scala
+val height = 175.5
+val weight = 68.3
+
+val info = f"Height: $height%.2f cm, Weight: $weight%.1f kg."
+println(info) // Output: "Height: 175.50 cm, Weight: 68.3 kg."
+```
+
+In this example, we used the `%` character with `.2f` and `.1f` format specifiers to
+format the floating-point values with two decimal places and one decimal place, respectively.
+
+3. **raw Interpolator**: The `raw` interpolator is similar to the `s` interpolator but
+treats escape sequences within the string as literal characters, without interpreting them.
+It's useful when you want to include escape sequences like `\n` or `\t` in the string without their
+special meanings.
+
+Example using `raw` interpolator:
+
+```scala
+val text = raw"Hello\tWorld\n"
+println(text) // Output: "Hello\tWorld\n"
+```
+
+In this case, the `\t` and `\n` are treated as literal characters instead of escape sequences.
+
+String interpolation in Scala makes it easier to create complex strings by combining static text
+with dynamic values, reducing the need for concatenation or complex formatting operations.
+ It's a concise and powerful feature that improves the readability and maintainability of
+ string-based code.
+
+
+Comapanion object :
+-------------
+https://www.youtube.com/watch?v=zke1PckMvDI&list=PLmYUGOKB0IqxTRu6dHNSZn9vnOMHMR6wQ&index=17
+
+factory method:
+--------------
+Is used to offer a single interface to instantiate one of the multiple classes.
+https://www.youtube.com/watch?v=WMxPZw4wTL0
